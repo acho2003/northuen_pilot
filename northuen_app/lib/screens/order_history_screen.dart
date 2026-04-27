@@ -1,0 +1,57 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
+import '../state/app_state.dart';
+import '../widgets/money_text.dart';
+import '../widgets/status_chip.dart';
+import 'order_tracking_screen.dart';
+
+class OrderHistoryScreen extends StatefulWidget {
+  const OrderHistoryScreen({super.key});
+
+  @override
+  State<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
+}
+
+class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<AppState>().loadOrders();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final dateFormat = DateFormat('MMM d, h:mm a');
+    return RefreshIndicator(
+      onRefresh: app.loadOrders,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('Order history', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 14),
+          ...app.orders.map((order) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Card(
+                  child: ListTile(
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => OrderTrackingScreen(order: order))),
+                    title: Text('${order.orderType} order', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: Text(dateFormat.format(order.createdAt)),
+                    leading: const Icon(Icons.receipt_long_rounded),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [StatusChip(order.status), MoneyText(order.totalAmount)],
+                    ),
+                  ),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+}
