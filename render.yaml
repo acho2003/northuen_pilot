@@ -16,6 +16,16 @@ services:
         sync: false
       - key: DATABASE_PASSWORD
         sync: false
+      - key: DB_MAX_POOL_SIZE
+        value: 3
+      - key: DB_MIN_IDLE
+        value: 1
+      - key: DB_CONNECTION_TIMEOUT_MS
+        value: 30000
+      - key: DB_IDLE_TIMEOUT_MS
+        value: 300000
+      - key: DB_MAX_LIFETIME_MS
+        value: 900000
       - key: JWT_SECRET
         sync: false
       - key: JWT_EXPIRATION_MS

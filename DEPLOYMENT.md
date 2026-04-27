@@ -11,6 +11,11 @@ PORT=8081
 DATABASE_URL=jdbc:postgresql://<host>:<port>/<database>?sslmode=require
 DATABASE_USERNAME=<username>
 DATABASE_PASSWORD=<password>
+DB_MAX_POOL_SIZE=3
+DB_MIN_IDLE=1
+DB_CONNECTION_TIMEOUT_MS=30000
+DB_IDLE_TIMEOUT_MS=300000
+DB_MAX_LIFETIME_MS=900000
 JWT_SECRET=<at-least-32-bytes>
 JWT_EXPIRATION_MS=86400000
 ALLOWED_ORIGIN_PATTERNS=https://your-app-domain.com,http://localhost:*
@@ -48,6 +53,12 @@ This repo includes `render.yaml`, based on Render Blueprints. Render’s docs de
 ```powershell
 cd northuen_app
 flutter build apk --release --dart-define=API_BASE_URL=https://your-render-service.onrender.com
+```
+
+If Supabase reports `MaxClientsInSessionMode`, use the transaction pooler on port `6543` and keep `DB_MAX_POOL_SIZE=3`. For transaction pooling, a safe JDBC URL is:
+
+```text
+jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0
 ```
 
 Swagger:
