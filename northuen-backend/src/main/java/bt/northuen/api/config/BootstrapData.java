@@ -2,9 +2,12 @@ package bt.northuen.api.config;
 
 import bt.northuen.api.entity.*;
 import bt.northuen.api.repository.DriverRepository;
+import bt.northuen.api.repository.PickDropOrderRepository;
 import bt.northuen.api.repository.ProductRepository;
 import bt.northuen.api.repository.UserRepository;
 import bt.northuen.api.repository.VendorRepository;
+import bt.northuen.api.repository.WalletAccountRepository;
+import bt.northuen.api.repository.WalletTransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
@@ -14,6 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -22,6 +26,9 @@ public class BootstrapData implements ApplicationRunner {
     private final VendorRepository vendorRepository;
     private final ProductRepository productRepository;
     private final DriverRepository driverRepository;
+    private final PickDropOrderRepository pickDropOrderRepository;
+    private final WalletAccountRepository walletAccountRepository;
+    private final WalletTransactionRepository walletTransactionRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${ADMIN_EMAIL:}")
@@ -61,6 +68,7 @@ public class BootstrapData implements ApplicationRunner {
     }
 
     private void seedDemoData() {
+        var customer = user("Chencho", "customer@northuen.bt", "+97517123456", Role.CUSTOMER);
         var restaurantOwner = user("Sonam Dorji", "sonam.kitchen@northuen.bt", "+97517110001", Role.VENDOR);
         var groceryOwner = user("Karma Store", "karma.store@northuen.bt", "+97517110002", Role.VENDOR);
         var driverOne = user("Pema Driver", "pema.driver@northuen.bt", "+97517110003", Role.DRIVER);
@@ -78,6 +86,11 @@ public class BootstrapData implements ApplicationRunner {
 
         driver(driverOne, "Bike", "TH-BIKE-101", true);
         driver(driverTwo, "Car", "TH-CAR-202", true);
+
+        walletRecharge(customer, "500.00", "SEED-CUSTOMER-500", "Pilot manual token recharge");
+        walletRecharge(driverOne, "120.00", "SEED-PEMA-120", "Runner pilot token float");
+        walletRecharge(driverTwo, "120.00", "SEED-DEKI-120", "Runner pilot token float");
+        pickDropJob(customer);
     }
 
     private User user(String fullName, String email, String phone, Role role) {
@@ -134,5 +147,52 @@ public class BootstrapData implements ApplicationRunner {
             driver.setCurrentLongitude(new BigDecimal("89.6320000"));
             return driverRepository.save(driver);
         });
+    }
+
+    private void walletRecharge(User user, String amount, String reference, String note) {
+        if (walletTransactionRepository.existsByReference(reference)) {
+            return;
+        }
+        var rechargeAmount = new BigDecimal(amount);
+        var wallet = walletAccountRepository.findByUser(user).orElseGet(() -> {
+            var account = new WalletAccount();
+            account.setUser(user);
+            account.setTokenBalance(BigDecimal.ZERO);
+            return walletAccountRepository.save(account);
+        });
+        wallet.setTokenBalance(wallet.getTokenBalance().add(rechargeAmount));
+        walletAccountRepository.save(wallet);
+
+        var transaction = new WalletTransaction();
+        transaction.setWallet(wallet);
+        transaction.setType(WalletTransactionType.MANUAL_RECHARGE);
+        transaction.setAmount(rechargeAmount);
+        transaction.setBalanceAfter(wallet.getTokenBalance());
+        transaction.setReference(reference);
+        transaction.setNote(note);
+        walletTransactionRepository.save(transaction);
+    }
+
+    private void pickDropJob(User customer) {
+        var openJobs = pickDropOrderRepository.findByDriverIsNullAndStatusInOrderByCreatedAtDesc(List.of(PickDropStatus.PENDING));
+        boolean demoExists = openJobs.stream().anyMatch(order -> order.getItemDescription().contains("Seeded pilot job"));
+        if (demoExists) {
+            return;
+        }
+        var order = new PickDropOrder();
+        order.setCustomer(customer);
+        order.setPickupAddress("Clock Tower Square, Thimphu");
+        order.setPickupLat(new BigDecimal("27.4728000"));
+        order.setPickupLng(new BigDecimal("89.6390000"));
+        order.setDropAddress("Motithang, Thimphu");
+        order.setDropLat(new BigDecimal("27.4850000"));
+        order.setDropLng(new BigDecimal("89.6250000"));
+        order.setItemType("Documents");
+        order.setItemDescription("Seeded pilot job - envelope delivery for driver testing");
+        order.setEstimatedDistanceKm(new BigDecimal("1.94"));
+        order.setEstimatedPrice(new BigDecimal("88.80"));
+        order.setStatus(PickDropStatus.PENDING);
+        order.setPaymentStatus(PaymentStatus.PENDING);
+        pickDropOrderRepository.save(order);
     }
 }

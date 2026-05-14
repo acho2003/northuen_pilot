@@ -15,6 +15,7 @@ import bt.northuen.api.entity.SettlementStatus;
 @RequiredArgsConstructor
 public class AdminController {
     private final AdminService adminService;
+    private final bt.northuen.api.service.NotificationService notificationService;
 
     @GetMapping("/orders")
     public List<OrderResponse> orders() {
@@ -69,5 +70,11 @@ public class AdminController {
     @PatchMapping("/users/{id}/active")
     public UserResponse setActive(@PathVariable UUID id, @Valid @RequestBody UserActiveRequest request) {
         return adminService.setActive(id, request);
+    }
+
+    @PostMapping("/notifications")
+    public AdminNotificationResponse sendNotification(@Valid @RequestBody SendNotificationRequest request) {
+        var count = notificationService.sendFromAdmin(bt.northuen.api.security.CurrentUser.get(), request);
+        return new AdminNotificationResponse(count, notificationService.targetLabel(request), request.title());
     }
 }

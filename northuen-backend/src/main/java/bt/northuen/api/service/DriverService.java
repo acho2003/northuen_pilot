@@ -24,11 +24,15 @@ public class DriverService {
     private final OrderRepository orderRepository;
     private final NotificationService notificationService;
     private final DtoMapper mapper;
+    private final GoogleRoadsService googleRoadsService;
 
     @Transactional(readOnly = true)
     public List<OrderResponse> assignedOrders(User user) {
         var driver = driverRepository.findByUser(user).orElseThrow(() -> new ResourceNotFoundException("Driver profile not found."));
-        return deliveryRepository.findByDriverOrderByCreatedAtDesc(driver).stream()
+        return deliveryRepository.findByDriverAndStatusInOrderByCreatedAtDesc(
+                        driver,
+                        List.of(DeliveryStatus.ASSIGNED, DeliveryStatus.ACCEPTED, DeliveryStatus.PICKED_UP, DeliveryStatus.ON_THE_WAY)
+                ).stream()
                 .map(delivery -> mapper.order(delivery.getOrder(), delivery))
                 .toList();
     }
@@ -98,14 +102,18 @@ public class DriverService {
     public void location(User user, UUID deliveryId, LocationRequest request) {
         var delivery = ownedDelivery(user, deliveryId);
         var driver = delivery.getDriver();
-        driver.setCurrentLatitude(request.latitude());
-        driver.setCurrentLongitude(request.longitude());
+        var previous = trackingRepository.findFirstByDeliveryOrderByCreatedAtDesc(delivery);
+        var roadPoint = previous
+                .map(point -> googleRoadsService.snap(point.getLatitude(), point.getLongitude(), request.latitude(), request.longitude()))
+                .orElseGet(() -> googleRoadsService.snap(request.latitude(), request.longitude()));
+        driver.setCurrentLatitude(roadPoint.lat());
+        driver.setCurrentLongitude(roadPoint.lng());
         driverRepository.save(driver);
 
         var tracking = new DeliveryTracking();
         tracking.setDelivery(delivery);
-        tracking.setLatitude(request.latitude());
-        tracking.setLongitude(request.longitude());
+        tracking.setLatitude(roadPoint.lat());
+        tracking.setLongitude(roadPoint.lng());
         trackingRepository.save(tracking);
     }
 

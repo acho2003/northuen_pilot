@@ -91,7 +91,17 @@ public class DtoMapper {
     }
 
     public NotificationResponse notification(Notification notification) {
-        return new NotificationResponse(notification.getId(), notification.getTitle(), notification.getMessage(), notification.isRead(), notification.getCreatedAt());
+        return new NotificationResponse(
+                notification.getId(),
+                notification.getTitle(),
+                notification.getMessage(),
+                notification.isRead(),
+                notification.getType(),
+                notification.getTargetRole() == null ? null : notification.getTargetRole().name(),
+                notification.getPriority(),
+                notification.getReadAt(),
+                notification.getCreatedAt()
+        );
     }
 
     public TrackingPointResponse tracking(DeliveryTracking tracking) {

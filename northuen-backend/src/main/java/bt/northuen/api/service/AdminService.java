@@ -20,6 +20,7 @@ public class AdminService {
     private final DeliveryRepository deliveryRepository;
     private final DriverRepository driverRepository;
     private final PaymentRepository paymentRepository;
+    private final PickDropOrderRepository pickDropOrderRepository;
     private final DriverCashSettlementRepository settlementRepository;
     private final UserRepository userRepository;
     private final VendorRepository vendorRepository;
@@ -86,7 +87,7 @@ public class AdminService {
                 activeOrders,
                 deliveredOrders,
                 driverRepository.findByAvailableTrueOrderByUpdatedAtDesc().size(),
-                paymentRepository.totalCollected(),
+                paymentRepository.totalCollected().add(pickDropCollectedTotal()),
                 settlementRepository.totalPending()
         );
     }
@@ -120,17 +121,44 @@ public class AdminService {
                 rows.get(name)[1] = rows.get(name)[1].add(payment.getAmount());
             }
         }
+        for (var order : pickDropOrderRepository.findAll()) {
+            String name = order.getDriver() == null ? "Unassigned Pick & Drop" : order.getDriver().getUser().getFullName();
+            rows.putIfAbsent(name, new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            if (order.getPaymentStatus() == PaymentStatus.PAID) {
+                rows.get(name)[0] = rows.get(name)[0].add(order.getEstimatedPrice());
+            } else if (order.getStatus() != PickDropStatus.CANCELLED) {
+                rows.get(name)[1] = rows.get(name)[1].add(order.getEstimatedPrice());
+            }
+        }
         var driverRows = rows.entrySet().stream()
                 .map(entry -> new CashReportResponse.DriverCashRow(entry.getKey(), entry.getValue()[0], entry.getValue()[1]))
                 .toList();
+        var pickDropCollected = pickDropCollectedTotal();
+        var pickDropPending = pickDropPendingTotal();
+        var paidPickDropCount = pickDropOrderRepository.findAll().stream().filter(order -> order.getPaymentStatus() == PaymentStatus.PAID).count();
+        var pendingPickDropCount = pickDropOrderRepository.findAll().stream().filter(order -> order.getPaymentStatus() == PaymentStatus.PENDING && order.getStatus() != PickDropStatus.CANCELLED).count();
         return new CashReportResponse(
-                paymentRepository.totalCollected(),
-                paymentRepository.totalPending(),
+                paymentRepository.totalCollected().add(pickDropCollected),
+                paymentRepository.totalPending().add(pickDropPending),
                 settlementRepository.totalPending(),
                 settlementRepository.totalPaid(),
-                paymentRepository.countByStatus(PaymentStatus.PAID),
-                paymentRepository.countByStatus(PaymentStatus.PENDING),
+                paymentRepository.countByStatus(PaymentStatus.PAID) + paidPickDropCount,
+                paymentRepository.countByStatus(PaymentStatus.PENDING) + pendingPickDropCount,
                 driverRows
         );
+    }
+
+    private BigDecimal pickDropCollectedTotal() {
+        return pickDropOrderRepository.findAll().stream()
+                .filter(order -> order.getPaymentStatus() == PaymentStatus.PAID)
+                .map(PickDropOrder::getEstimatedPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal pickDropPendingTotal() {
+        return pickDropOrderRepository.findAll().stream()
+                .filter(order -> order.getPaymentStatus() == PaymentStatus.PENDING && order.getStatus() != PickDropStatus.CANCELLED)
+                .map(PickDropOrder::getEstimatedPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }
